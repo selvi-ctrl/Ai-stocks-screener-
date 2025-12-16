@@ -2,7 +2,7 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://shivansh:pass@localhost:5432/stocks',
+    connectionString: process.env.DATABASE_URL || 'postgresql://Sparshika:pass@localhost:5432/stocks',
 });
 
 pool.on('connect', () => {

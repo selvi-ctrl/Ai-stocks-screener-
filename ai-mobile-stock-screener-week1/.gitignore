@@ -1,0 +1,19 @@
+# Node
+backend/node_modules/
+backend/.npm/
+backend/npm-debug.log*
+backend/yarn-error.log
+
+# Env
+backend/.env
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS
+.DS_Store
+Thumbs.db

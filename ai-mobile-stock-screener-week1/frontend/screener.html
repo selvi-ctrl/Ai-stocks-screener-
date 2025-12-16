@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Screener - AI Stock Screener</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="bg-animation"></div>
+    
+    <nav class="navbar">
+        <div class="navbar-brand">AI Stock Screener</div>
+        <ul class="navbar-menu">
+            <li><a href="dashboard.html">Dashboard</a></li>
+            <li><a href="screener.html">Stock Screener</a></li>
+            <li><a href="#" id="logoutBtn">Logout</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <h1>AI-Powered Stock Screener 🤖</h1>
+            <p style="color: var(--text-secondary);">Use natural language to find the perfect stocks</p>
+        </div>
+
+        <div class="screener-container">
+            <h2 style="margin-bottom: 1.5rem;">Search Stocks with AI</h2>
+            
+            <div class="search-box">
+                <input type="text" id="queryInput" class="form-control" 
+                       placeholder="Example: Show me tech stocks with PE ratio less than 20 and revenue growth above 15%">
+                <button class="btn btn-primary" id="searchBtn" style="width: auto; padding: 0.875rem 2rem;">
+                    🔍 Search
+                </button>
+            </div>
+
+            <div id="alert" class="alert"></div>
+            <div class="spinner" id="spinner"></div>
+
+            <div style="margin: 2rem 0;">
+                <h3 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.95rem;">
+                    POPULAR SEARCHES:
+                </h3>
+                <div class="filters-grid">
+                    <button class="btn btn-secondary" onclick="runQuery('high dividend yield stocks in IT sector')">
+                        💰 High Dividend IT
+                    </button>
+                    <button class="btn btn-secondary" onclick="runQuery('tech stocks with PE under 30')">
+                        💻 Low PE Tech
+                    </button>
+                    <button class="btn btn-secondary" onclick="runQuery('growth stocks with strong revenue')">
+                        📈 Growth Stocks
+                    </button>
+                    <button class="btn btn-secondary" onclick="runQuery('value stocks with low debt to equity')">
+                        💎 Value Stocks
+                    </button>
+                    <button class="btn btn-secondary" onclick="runQuery('stocks with market cap over 1000 crore')">
+                        🏢 Large Cap
+                    </button>
+                    <button class="btn btn-secondary" onclick="runQuery('profitable companies with positive cash flow')">
+                        💵 Profitable
+                    </button>
+                </div>
+            </div>
+
+            <div id="results" class="stock-list"></div>
+        </div>
+
+        <div class="screener-container">
+            <h2 style="margin-bottom: 1.5rem;">Advanced Filters</h2>
+            
+            <div class="filters-grid">
+                <div class="form-group">
+                    <label>Sector</label>
+                    <select class="form-control" id="sectorFilter">
+                        <option value="">All Sectors</option>
+                        <option value="IT">Information Technology</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Healthcare">Healthcare</option>
+                        <option value="Energy">Energy</option>
+                        <option value="Consumer">Consumer Goods</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Market Cap</label>
+                    <select class="form-control" id="marketCapFilter">
+                        <option value="">All Caps</option>
+                        <option value="large">Large Cap (>10,000 Cr)</option>
+                        <option value="mid">Mid Cap (2,000-10,000 Cr)</option>
+                        <option value="small">Small Cap (<2,000 Cr)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>PE Ratio</label>
+                    <input type="number" class="form-control" id="peFilter" placeholder="Max PE Ratio">
+                </div>
+
+                <div class="form-group">
+                    <label>Dividend Yield (%)</label>
+                    <input type="number" class="form-control" id="dividendFilter" placeholder="Min Dividend %">
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="applyFilters()" style="width: 200px; margin-top: 1rem;">
+                Apply Filters
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+        }
+
+        // Logout functionality
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        });
+
+        // Search functionality
+        const queryInput = document.getElementById('queryInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const alert = document.getElementById('alert');
+        const spinner = document.getElementById('spinner');
+        const results = document.getElementById('results');
+
+        function showAlert(message, type) {
+            alert.className = `alert alert-${type} show`;
+            alert.textContent = message;
+            setTimeout(() => {
+                alert.className = 'alert';
+            }, 5000);
+        }
+
+        async function runQuery(query) {
+            queryInput.value = query;
+            await searchStocks();
+        }
+
+        async function searchStocks() {
+            const query = queryInput.value.trim();
+            
+            if (!query) {
+                showAlert('Please enter a search query', 'error');
+                return;
+            }
+
+            spinner.classList.add('show');
+            results.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/parse', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ query }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert(`Found matching stocks for: "${query}"`, 'success');
+                    
+                    // Sample stock data for demonstration
+                    const sampleStocks = [
+                        { symbol: 'TCS', name: 'Tata Consultancy Services', price: 3520.50, change: 2.5, sector: 'IT', pe: 28.5, dividend: 1.8, marketCap: 1285000 },
+                        { symbol: 'INFY', name: 'Infosys Limited', price: 1455.75, change: 1.8, sector: 'IT', pe: 26.2, dividend: 2.1, marketCap: 605000 },
+                        { symbol: 'WIPRO', name: 'Wipro Limited', price: 425.30, change: -0.5, sector: 'IT', pe: 24.8, dividend: 1.5, marketCap: 232000 },
+                        { symbol: 'HCLTECH', name: 'HCL Technologies', price: 1285.60, change: 3.2, sector: 'IT', pe: 22.5, dividend: 2.5, marketCap: 349000 },
+                        { symbol: 'TECHM', name: 'Tech Mahindra', price: 1165.90, change: -1.2, sector: 'IT', pe: 29.3, dividend: 1.2, marketCap: 113000 },
+                    ];
+
+                    results.innerHTML = `
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-secondary);">
+                            Showing ${sampleStocks.length} results
+                        </h3>
+                        ${sampleStocks.map(stock => `
+                            <div class="stock-item">
+                                <div class="stock-info">
+                                    <h3>${stock.symbol}</h3>
+                                    <p>${stock.name}</p>
+                                    <p style="color: var(--primary-color); margin-top: 0.5rem;">
+                                        ${stock.sector} • PE: ${stock.pe} • Div: ${stock.dividend}%
+                                    </p>
+                                </div>
+                                <div class="stock-price">
+                                    <div class="price">₹${stock.price.toFixed(2)}</div>
+                                    <div class="change ${stock.change >= 0 ? 'positive' : 'negative'}">
+                                        ${stock.change >= 0 ? '↑' : '↓'} ${Math.abs(stock.change)}%
+                                    </div>
+                                    <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.5rem;">
+                                        MCap: ₹${(stock.marketCap / 10000).toFixed(0)}K Cr
+                                    </p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    `;
+                } else {
+                    showAlert('Search failed. Please try again.', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            } finally {
+                spinner.classList.remove('show');
+            }
+        }
+
+        function applyFilters() {
+            const sector = document.getElementById('sectorFilter').value;
+            const marketCap = document.getElementById('marketCapFilter').value;
+            const pe = document.getElementById('peFilter').value;
+            const dividend = document.getElementById('dividendFilter').value;
+
+            let query = 'Show me stocks';
+            if (sector) query += ` in ${sector} sector`;
+            if (marketCap) query += ` with ${marketCap} market cap`;
+            if (pe) query += ` and PE ratio less than ${pe}`;
+            if (dividend) query += ` and dividend yield above ${dividend}%`;
+
+            queryInput.value = query;
+            searchStocks();
+        }
+
+        searchBtn.addEventListener('click', searchStocks);
+        queryInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchStocks();
+            }
+        });
+    </script>
+</body>
+</html>

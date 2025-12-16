@@ -51,4 +51,4 @@ router.post('/login', async (req, res) => {
     }
 });
 
-module.exports = { router, verifyToken };
+module.exports = router;

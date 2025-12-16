@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - AI Stock Screener</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="bg-animation"></div>
+    
+    <nav class="navbar">
+        <div class="navbar-brand">AI Stock Screener</div>
+        <ul class="navbar-menu">
+            <li><a href="dashboard.html">Dashboard</a></li>
+            <li><a href="screener.html">Stock Screener</a></li>
+            <li><a href="#" id="logoutBtn">Logout</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <h1>Welcome, <span id="userName">User</span>! 👋</h1>
+            <p style="color: var(--text-secondary);">Here's your investment overview</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <span class="stat-card-icon">💼</span>
+                </div>
+                <div class="stat-card-value">$0</div>
+                <div class="stat-card-label">Portfolio Value</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <span class="stat-card-icon">📈</span>
+                </div>
+                <div class="stat-card-value">0</div>
+                <div class="stat-card-label">Stocks Tracked</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <span class="stat-card-icon">🔔</span>
+                </div>
+                <div class="stat-card-value">0</div>
+                <div class="stat-card-label">Active Alerts</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <span class="stat-card-icon">⚡</span>
+                </div>
+                <div class="stat-card-value" style="color: var(--success-color);">+0%</div>
+                <div class="stat-card-label">Today's Change</div>
+            </div>
+        </div>
+
+        <div class="screener-container">
+            <h2 style="margin-bottom: 1.5rem;">Quick Stock Screener</h2>
+            
+            <div class="search-box">
+                <input type="text" id="queryInput" class="form-control" 
+                       placeholder="Try: Show me tech stocks with PE ratio less than 20">
+                <button class="btn btn-primary" id="searchBtn" style="width: auto; padding: 0.875rem 2rem;">
+                    Search
+                </button>
+            </div>
+
+            <div id="alert" class="alert"></div>
+            <div class="spinner" id="spinner"></div>
+
+            <div id="results" class="stock-list"></div>
+        </div>
+
+        <div class="screener-container">
+            <h2 style="margin-bottom: 1.5rem;">Popular Screens</h2>
+            <div class="filters-grid">
+                <button class="btn btn-secondary" onclick="runQuery('high dividend yield stocks')">
+                    High Dividend Yield
+                </button>
+                <button class="btn btn-secondary" onclick="runQuery('tech stocks under 50 PE')">
+                    Tech Stocks Under 50 PE
+                </button>
+                <button class="btn btn-secondary" onclick="runQuery('growth stocks')">
+                    Growth Stocks
+                </button>
+                <button class="btn btn-secondary" onclick="runQuery('value stocks')">
+                    Value Stocks
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+        }
+
+        // Decode JWT to get user info (simple decoding, not validation)
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        const userInfo = parseJwt(token);
+        if (userInfo && userInfo.email) {
+            document.getElementById('userName').textContent = userInfo.email.split('@')[0];
+        }
+
+        // Logout functionality
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        });
+
+        // Search functionality
+        const queryInput = document.getElementById('queryInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const alert = document.getElementById('alert');
+        const spinner = document.getElementById('spinner');
+        const results = document.getElementById('results');
+
+        function showAlert(message, type) {
+            alert.className = `alert alert-${type} show`;
+            alert.textContent = message;
+            setTimeout(() => {
+                alert.className = 'alert';
+            }, 5000);
+        }
+
+        async function runQuery(query) {
+            queryInput.value = query;
+            await searchStocks();
+        }
+
+        async function searchStocks() {
+            const query = queryInput.value.trim();
+            
+            if (!query) {
+                showAlert('Please enter a search query', 'error');
+                return;
+            }
+
+            spinner.classList.add('show');
+            results.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/parse', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ query }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert(`Query processed: "${query}"`, 'success');
+                    
+                    // Sample stock data for demonstration
+                    const sampleStocks = [
+                        { symbol: 'TCS', name: 'Tata Consultancy Services', price: 3500, change: 2.5, sector: 'IT' },
+                        { symbol: 'INFY', name: 'Infosys Limited', price: 1450, change: 1.8, sector: 'IT' },
+                        { symbol: 'WIPRO', name: 'Wipro Limited', price: 420, change: -0.5, sector: 'IT' },
+                    ];
+
+                    results.innerHTML = sampleStocks.map(stock => `
+                        <div class="stock-item">
+                            <div class="stock-info">
+                                <h3>${stock.symbol}</h3>
+                                <p>${stock.name}</p>
+                                <p style="color: var(--primary-color);">${stock.sector}</p>
+                            </div>
+                            <div class="stock-price">
+                                <div class="price">₹${stock.price.toFixed(2)}</div>
+                                <div class="change ${stock.change >= 0 ? 'positive' : 'negative'}">
+                                    ${stock.change >= 0 ? '↑' : '↓'} ${Math.abs(stock.change)}%
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    showAlert('Search failed. Please try again.', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            } finally {
+                spinner.classList.remove('show');
+            }
+        }
+
+        searchBtn.addEventListener('click', searchStocks);
+        queryInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchStocks();
+            }
+        });
+    </script>
+</body>
+</html>

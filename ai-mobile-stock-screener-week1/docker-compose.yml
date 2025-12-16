@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   db:
-    image: postgres:latest
+    image: postgres:17
     environment:
       POSTGRES_USER: Sparshika
       POSTGRES_PASSWORD: pass
@@ -10,7 +8,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
 
 volumes:
   postgres_data:
