@@ -29,11 +29,11 @@ Write-Host ""
 Write-Host "[3/5] Applying database schema..." -ForegroundColor Yellow
 $containerName = (docker ps --filter "ancestor=postgres:latest" --format "{{.Names}}")
 if ($containerName) {
-    Get-Content "db\schema.sql" | docker exec -i $containerName psql -U Sparshika -d stocks
+    Get-Content "db\schema.sql" | docker exec -i $containerName psql -U Shivansh -d stocks
     Write-Host "✓ Database schema applied" -ForegroundColor Green
 } else {
     Write-Host "✗ Could not find database container" -ForegroundColor Red
-    Write-Host "Please run manually: docker exec -i CONTAINER_NAME psql -U Sparshika -d stocks < db/schema.sql" -ForegroundColor Yellow
+    Write-Host "Please run manually: docker exec -i CONTAINER_NAME psql -U Shivansh -d stocks < db/schema.sql" -ForegroundColor Yellow
 }
 
 # Install backend dependencies

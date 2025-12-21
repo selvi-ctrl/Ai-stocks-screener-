@@ -19,10 +19,14 @@ CREATE TABLE companies (
 CREATE TABLE fundamentals (
     id SERIAL PRIMARY KEY,
     company_id INT REFERENCES companies(id),
-    fiscal_year INT NOT NULL,
+    symbol VARCHAR(10) UNIQUE,
+    fiscal_year INT,
     revenue NUMERIC,
     net_income NUMERIC,
-    debt_to_fcf NUMERIC
+    debt_to_fcf NUMERIC,
+    market_cap NUMERIC,
+    trailing_pe NUMERIC,
+    forward_pe NUMERIC
 );
 
 CREATE TABLE quarterly_results (
@@ -65,3 +69,30 @@ CREATE TABLE alerts (
     threshold NUMERIC,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Screener specific metrics to power NL → DSL → SQL flow
+CREATE TABLE IF NOT EXISTS screener_metrics (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(12) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    sector VARCHAR(120),
+    pe_ratio NUMERIC,
+    promoter_holding NUMERIC,
+    earnings_positive BOOLEAN,
+    quarter VARCHAR(16),
+    market_cap NUMERIC,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Starter dataset to make the screener demo work out of the box
+INSERT INTO screener_metrics (symbol, name, sector, pe_ratio, promoter_holding, earnings_positive, quarter, market_cap)
+VALUES
+    ('TCS', 'Tata Consultancy Services', 'IT', 28.5, 72.0, TRUE, 'Q2FY25', 1285000),
+    ('INFY', 'Infosys Limited', 'IT', 26.2, 74.0, TRUE, 'Q2FY25', 605000),
+    ('WIPRO', 'Wipro Limited', 'IT', 24.8, 73.5, TRUE, 'Q2FY25', 232000),
+    ('HCLTECH', 'HCL Technologies', 'IT', 22.5, 60.0, TRUE, 'Q2FY25', 349000),
+    ('TECHM', 'Tech Mahindra', 'IT', 29.3, 35.0, FALSE, 'Q2FY25', 113000),
+    ('SBIN', 'State Bank of India', 'Financials', 13.1, 57.6, TRUE, 'Q2FY25', 750000),
+    ('RELIANCE', 'Reliance Industries', 'Energy', 24.0, 50.5, TRUE, 'Q2FY25', 1800000),
+    ('HDFCBANK', 'HDFC Bank', 'Financials', 19.4, 25.0, TRUE, 'Q2FY25', 1100000)
+ON CONFLICT (symbol) DO NOTHING;

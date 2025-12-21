@@ -173,7 +173,7 @@ GET /api/stocks/status
     "connected": true,
     "stockCount": 150
   },
-  "yahooFinanceAPI": {
+  "binanceAPI": {
     "status": "OK"
   },
   "timestamp": "2025-12-16T12:00:00.000Z"
@@ -203,10 +203,10 @@ curl -X POST http://localhost:3000/api/scheduler/trigger
 ### Test Stock API
 ```bash
 # Get Apple stock quote
-curl http://localhost:3000/api/stocks/quote/AAPL
+curl http://localhost:3000/api/stocks/quote/BTCUSDT
 
 # Get multiple quotes
-curl "http://localhost:3000/api/stocks/quotes?symbols=AAPL,GOOGL,MSFT"
+curl "http://localhost:3000/api/stocks/quotes?symbols=BTCUSDT,ETHUSDT,BNBUSDT"
 
 # Check API status
 curl http://localhost:3000/api/stocks/status
@@ -231,7 +231,7 @@ POSTGRES_PORT=5432
 - **Schedule:** Every 30 minutes
 - **Market Hours:** 9 AM - 4 PM IST
 - **Active Days:** Monday - Friday
-- **Script:** `scripts/ingest_yfinance.py`
+- **Script:** `scripts/ingest_yfinance.py` (Binance data)
 
 ---
 

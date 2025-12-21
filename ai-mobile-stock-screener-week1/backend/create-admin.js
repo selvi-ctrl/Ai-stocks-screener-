@@ -7,7 +7,7 @@ async function createAdmin() {
         host: 'localhost',
         port: 5432,
         database: 'stocks',
-        user: 'Sparshika',
+        user: 'Shivansh',
         password: 'pass'
     });
 

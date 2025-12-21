@@ -14,6 +14,7 @@
         <ul class="navbar-menu">
             <li><a href="dashboard.html">Dashboard</a></li>
             <li><a href="screener.html">Stock Screener</a></li>
+            <li><button class="theme-toggle" id="themeToggle">🌗 Theme</button></li>
             <li><a href="#" id="logoutBtn">Logout</a></li>
         </ul>
     </nav>
@@ -37,6 +38,23 @@
 
             <div id="alert" class="alert"></div>
             <div class="spinner" id="spinner"></div>
+
+            <div style="margin:1.25rem 0 0.5rem 0; display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+                <div>
+                    <h3 style="margin:0; color: var(--text-secondary); font-size:0.95rem;">LIVE MARKET TICKER</h3>
+                    <p style="margin:0; color: var(--text-secondary); font-size:0.85rem;">Auto-refreshing with Binance quotes</p>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem; color: var(--text-secondary); font-size:0.9rem;">
+                    <label for="refreshSelect">Refresh</label>
+                    <select id="refreshSelect" class="form-control" style="width:160px; padding:0.45rem 0.75rem;">
+                        <option value="3000">3s</option>
+                        <option value="5000" selected>5s</option>
+                        <option value="10000">10s</option>
+                        <option value="15000">15s</option>
+                    </select>
+                </div>
+            </div>
+            <div id="liveTicker" class="live-ticker"></div>
 
             <div style="margin: 2rem 0;">
                 <h3 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.95rem;">
@@ -111,7 +129,7 @@
     </div>
 
     <script>
-        // Check if user is logged in
+        // Auth check
         const token = localStorage.getItem('token');
         if (!token) {
             window.location.href = 'login.html';
@@ -124,12 +142,26 @@
             window.location.href = 'login.html';
         });
 
+        // Theme toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        if (savedTheme === 'light') document.body.classList.add('light');
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('light');
+            localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+        });
+
         // Search functionality
         const queryInput = document.getElementById('queryInput');
         const searchBtn = document.getElementById('searchBtn');
         const alert = document.getElementById('alert');
         const spinner = document.getElementById('spinner');
         const results = document.getElementById('results');
+        const liveTicker = document.getElementById('liveTicker');
+        const refreshSelect = document.getElementById('refreshSelect');
+        let liveSymbols = [];
+        let refreshHandle = null;
+        let lastMeta = null;
 
         function showAlert(message, type) {
             alert.className = `alert alert-${type} show`;
@@ -169,43 +201,65 @@
 
                 if (response.ok) {
                     showAlert(`Found matching stocks for: "${query}"`, 'success');
-                    
-                    // Sample stock data for demonstration
-                    const sampleStocks = [
-                        { symbol: 'TCS', name: 'Tata Consultancy Services', price: 3520.50, change: 2.5, sector: 'IT', pe: 28.5, dividend: 1.8, marketCap: 1285000 },
-                        { symbol: 'INFY', name: 'Infosys Limited', price: 1455.75, change: 1.8, sector: 'IT', pe: 26.2, dividend: 2.1, marketCap: 605000 },
-                        { symbol: 'WIPRO', name: 'Wipro Limited', price: 425.30, change: -0.5, sector: 'IT', pe: 24.8, dividend: 1.5, marketCap: 232000 },
-                        { symbol: 'HCLTECH', name: 'HCL Technologies', price: 1285.60, change: 3.2, sector: 'IT', pe: 22.5, dividend: 2.5, marketCap: 349000 },
-                        { symbol: 'TECHM', name: 'Tech Mahindra', price: 1165.90, change: -1.2, sector: 'IT', pe: 29.3, dividend: 1.2, marketCap: 113000 },
-                    ];
+                    const rows = data.data || [];
+                    lastMeta = data.meta || null;
 
-                    results.innerHTML = `
-                        <h3 style="margin-bottom: 1.5rem; color: var(--text-secondary);">
-                            Showing ${sampleStocks.length} results
-                        </h3>
-                        ${sampleStocks.map(stock => `
-                            <div class="stock-item">
-                                <div class="stock-info">
-                                    <h3>${stock.symbol}</h3>
-                                    <p>${stock.name}</p>
-                                    <p style="color: var(--primary-color); margin-top: 0.5rem;">
-                                        ${stock.sector} • PE: ${stock.pe} • Div: ${stock.dividend}%
-                                    </p>
-                                </div>
-                                <div class="stock-price">
-                                    <div class="price">₹${stock.price.toFixed(2)}</div>
-                                    <div class="change ${stock.change >= 0 ? 'positive' : 'negative'}">
-                                        ${stock.change >= 0 ? '↑' : '↓'} ${Math.abs(stock.change)}%
-                                    </div>
-                                    <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.5rem;">
-                                        MCap: ₹${(stock.marketCap / 10000).toFixed(0)}K Cr
-                                    </p>
-                                </div>
-                            </div>
-                        `).join('')}
+                    const header = `
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                            <h3 style="color: var(--text-secondary);">Showing ${rows.length} result(s)</h3>
+                            ${lastMeta ? `<span style="color: var(--text-secondary); font-size:0.9rem;">${lastMeta.cache ? 'Cached' : 'Live'} • ${lastMeta.executionMs || 0}ms</span>` : ''}
+                        </div>
                     `;
+
+                    const table = rows.length === 0
+                        ? '<p style="color: var(--text-secondary);">No matches found.</p>'
+                        : `
+                            <div style="overflow-x:auto;">
+                                <table style="width:100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid var(--border-color);">Symbol</th>
+                                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid var(--border-color);">Name</th>
+                                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid var(--border-color);">Sector</th>
+                                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid var(--border-color);">PE</th>
+                                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid var(--border-color);">Promoter %</th>
+                                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid var(--border-color);">Earnings</th>
+                                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid var(--border-color);">Quarter</th>
+                                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid var(--border-color);">MCap</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${rows.map(r => `
+                                            <tr>
+                                                <td style="padding:0.5rem; border-bottom:1px solid var(--border-color); font-weight:600;">${r.symbol}</td>
+                                                <td style="padding:0.5rem; border-bottom:1px solid var(--border-color);">${r.name || ''}</td>
+                                                <td style="padding:0.5rem; border-bottom:1px solid var(--border-color); color: var(--text-secondary);">${r.sector || ''}</td>
+                                                <td style="padding:0.5rem; border-bottom:1px solid var(--border-color);">${r.pe_ratio ?? '—'}</td>
+                                                <td style="padding:0.5rem; border-bottom:1px solid var(--border-color);">${r.promoter_holding ?? '—'}</td>
+                                                <td style="padding:0.5rem; border-bottom:1px solid var(--border-color);">${r.earnings ? 'Positive' : 'Negative'}</td>
+                                                <td style="padding:0.5rem; border-bottom:1px solid var(--border-color);">${r.quarter || ''}</td>
+                                                <td style="padding:0.5rem; border-bottom:1px solid var(--border-color);">${r.market_cap ?? '—'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+
+                    const debug = `
+                        <div style="margin-top:1rem; padding:1rem; border:1px solid var(--border-color); border-radius:0.75rem; background: rgba(15,23,42,0.4);">
+                            <p style="color: var(--text-secondary); margin-bottom:0.5rem;">DSL</p>
+                            <pre style="white-space:pre-wrap; color: var(--text-primary);">${JSON.stringify(data.dsl || {}, null, 2)}</pre>
+                            <p style="color: var(--text-secondary); margin-top:1rem; margin-bottom:0.5rem;">SQL</p>
+                            <pre style="white-space:pre-wrap; color: var(--text-primary);">${data.sql || ''}</pre>
+                        </div>
+                    `;
+
+                    results.innerHTML = header + table + debug;
                 } else {
-                    showAlert('Search failed. Please try again.', 'error');
+                    const msg = data?.error || 'Search failed. Please try again.';
+                    showAlert(msg, 'error');
+                    results.innerHTML = '';
                 }
             } catch (error) {
                 showAlert('Network error. Please check your connection.', 'error');
@@ -236,6 +290,62 @@
                 searchStocks();
             }
         });
+
+        async function loadSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                const payload = await res.json();
+                if (payload?.data) {
+                    liveSymbols = payload.data.defaultSymbols || [];
+                    refreshSelect.value = String(payload.data.liveRefreshMs || 5000);
+                }
+            } catch (e) {
+                liveSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'];
+            }
+
+            const storedSymbols = localStorage.getItem('liveSymbols');
+            const storedInterval = localStorage.getItem('liveInterval');
+            if (storedSymbols) liveSymbols = storedSymbols.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+            if (storedInterval) refreshSelect.value = storedInterval;
+
+            startLiveTicker();
+        }
+
+        async function fetchLiveQuotes() {
+            if (!liveSymbols.length) return;
+            try {
+                const url = `/api/stocks/quotes?symbols=${liveSymbols.join(',')}`;
+                const res = await fetch(url);
+                const payload = await res.json();
+                if (!payload?.data) return;
+                liveTicker.innerHTML = payload.data.map((q) => {
+                    const change = Number(q.changePercent || 0);
+                    const changeClass = change >= 0 ? 'positive' : 'negative';
+                    return `
+                        <div class="live-tile">
+                            <div class="live-symbol">${q.symbol}</div>
+                            <div class="live-price">${Number(q.price).toFixed(4)}</div>
+                            <div class="live-change ${changeClass}">${change.toFixed(2)}%</div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error('Live ticker error', err);
+            }
+        }
+
+        function startLiveTicker() {
+            if (refreshHandle) clearInterval(refreshHandle);
+            fetchLiveQuotes();
+            const ms = Number(refreshSelect.value) || 5000;
+            refreshHandle = setInterval(fetchLiveQuotes, ms);
+        }
+
+        refreshSelect.addEventListener('change', () => {
+            startLiveTicker();
+        });
+
+        loadSettings();
     </script>
 </body>
 </html>

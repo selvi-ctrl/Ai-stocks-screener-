@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "demo:screener": "node demo/screener-demo.js",
+    "test:admin": "node test-admin.js"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -16,7 +18,9 @@
     "dotenv": "^16.3.1",
     "cors": "^2.8.5",
     "node-cron": "^3.0.3",
-    "yahoo-finance2": "^2.11.3"
+    "ajv": "^8.17.1",
+    "node-cache": "^5.1.2",
+    "openai": "^4.73.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.2",

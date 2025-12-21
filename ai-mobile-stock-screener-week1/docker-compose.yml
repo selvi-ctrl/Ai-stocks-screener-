@@ -2,7 +2,7 @@ services:
   db:
     image: postgres:17
     environment:
-      POSTGRES_USER: Sparshika
+      POSTGRES_USER: Shivansh
       POSTGRES_PASSWORD: pass
       POSTGRES_DB: stocks
     ports:

@@ -18,7 +18,7 @@ Wait 10-15 seconds for the database to initialize.
 
 ### Step 2: Apply Database Schema
 ```powershell
-docker exec -i ai-mobile-stock-screener-week1-db-1 psql -U Sparshika -d stocks < db/schema.sql
+docker exec -i ai-mobile-stock-screener-week1-db-1 psql -U Shivansh -d stocks < db/schema.sql
 ```
 
 If the container name is different, find it with:
@@ -74,8 +74,13 @@ Then login at: http://localhost:3000/login.html
 pip install -r requirements.txt
 ```
 
-### Run the ingestion script:
+### Run the ingestion script (Binance data):
 ```powershell
+python scripts/ingest_yfinance.py
+```
+Optional: set symbols (comma-separated):
+```powershell
+$env:BINANCE_SYMBOLS="BTCUSDT,ETHUSDT,BNBUSDT"
 python scripts/ingest_yfinance.py
 ```
 

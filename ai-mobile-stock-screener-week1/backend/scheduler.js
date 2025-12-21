@@ -37,7 +37,10 @@ const runDataIngestion = () => {
         }
 
         // Execute the Python script
-        exec(`python "${scriptPath}"`, { timeout: 300000 }, (error, stdout, stderr) => {
+        const pythonExe = process.platform === 'win32' 
+            ? '"C:/Users/Shivansh Singh/OneDrive/Desktop/ai stock screener/.venv/Scripts/python.exe"'
+            : 'python';
+        exec(`${pythonExe} "${scriptPath}"`, { timeout: 300000 }, (error, stdout, stderr) => {
             if (error) {
                 console.error(`[${new Date().toISOString()}] Error executing script:`, error);
                 console.error('stderr:', stderr);

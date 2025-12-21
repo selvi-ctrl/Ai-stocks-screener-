@@ -1,7 +1,70 @@
 const express = require('express');
-const yahooFinance = require('yahoo-finance2').default;
+const https = require('https');
 const db = require('../db');
 const router = express.Router();
+
+const BINANCE_API_BASE = 'https://api.binance.com';
+const buildUrl = (path, params = {}) => {
+    const url = new URL(path, BINANCE_API_BASE);
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            url.searchParams.append(key, value);
+        }
+    });
+    return url;
+};
+
+const fetchJson = (path, params = {}) => new Promise((resolve, reject) => {
+    const url = buildUrl(path, params);
+    const req = https.get(url, (res) => {
+        let body = '';
+        res.on('data', (chunk) => {
+            body += chunk;
+        });
+
+        res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                try {
+                    resolve(JSON.parse(body));
+                } catch (err) {
+                    reject(new Error(`Failed to parse Binance response: ${err.message}`));
+                }
+            } else {
+                reject(new Error(`Binance API error ${res.statusCode}: ${body}`));
+            }
+        });
+    });
+
+    req.on('error', (err) => reject(err));
+});
+
+// Cache exchange info to avoid hitting Binance on every request
+let exchangeInfoCache = { data: null, expiresAt: 0 };
+const getExchangeInfo = async () => {
+    const now = Date.now();
+    if (exchangeInfoCache.data && exchangeInfoCache.expiresAt > now) {
+        return exchangeInfoCache.data;
+    }
+
+    const data = await fetchJson('/api/v3/exchangeInfo');
+    exchangeInfoCache = {
+        data,
+        expiresAt: now + 10 * 60 * 1000, // 10 minute cache
+    };
+    return data;
+};
+
+const getSymbolLabel = async (symbol) => {
+    try {
+        const info = await getExchangeInfo();
+        const match = info?.symbols?.find((s) => s.symbol === symbol.toUpperCase());
+        if (!match) return symbol.toUpperCase();
+        return `${match.baseAsset}/${match.quoteAsset}`;
+    } catch (err) {
+        console.error('Failed to resolve symbol label:', err.message);
+        return symbol.toUpperCase();
+    }
+};
 
 // Error handling wrapper
 const asyncHandler = (fn) => (req, res, next) => {
@@ -21,23 +84,24 @@ router.get('/quote/:symbol', asyncHandler(async (req, res) => {
 
     try {
         console.log(`Fetching quote for ${symbol}...`);
-        const quote = await yahooFinance.quote(symbol);
+        const ticker = await fetchJson('/api/v3/ticker/24hr', { symbol: symbol.toUpperCase() });
+        const name = await getSymbolLabel(symbol);
 
         res.json({
             success: true,
             data: {
-                symbol: quote.symbol,
-                name: quote.longName || quote.shortName,
-                price: quote.regularMarketPrice,
-                previousClose: quote.regularMarketPreviousClose,
-                change: quote.regularMarketChange,
-                changePercent: quote.regularMarketChangePercent,
-                dayHigh: quote.regularMarketDayHigh,
-                dayLow: quote.regularMarketDayLow,
-                volume: quote.regularMarketVolume,
-                marketCap: quote.marketCap,
-                fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh,
-                fiftyTwoWeekLow: quote.fiftyTwoWeekLow,
+                symbol: ticker.symbol,
+                name,
+                price: Number(ticker.lastPrice),
+                previousClose: Number(ticker.prevClosePrice),
+                change: Number(ticker.priceChange),
+                changePercent: Number(ticker.priceChangePercent),
+                dayHigh: Number(ticker.highPrice),
+                dayLow: Number(ticker.lowPrice),
+                volume: Number(ticker.volume),
+                marketCap: null,
+                fiftyTwoWeekHigh: null,
+                fiftyTwoWeekLow: null,
                 timestamp: new Date()
             }
         });
@@ -70,14 +134,15 @@ router.get('/quotes', asyncHandler(async (req, res) => {
         const quotes = await Promise.all(
             symbolArray.map(async (symbol) => {
                 try {
-                    const quote = await yahooFinance.quote(symbol);
+                    const ticker = await fetchJson('/api/v3/ticker/24hr', { symbol });
+                    const name = await getSymbolLabel(symbol);
                     return {
-                        symbol: quote.symbol,
-                        name: quote.longName || quote.shortName,
-                        price: quote.regularMarketPrice,
-                        change: quote.regularMarketChange,
-                        changePercent: quote.regularMarketChangePercent,
-                        volume: quote.regularMarketVolume
+                        symbol: ticker.symbol,
+                        name,
+                        price: Number(ticker.lastPrice),
+                        change: Number(ticker.priceChange),
+                        changePercent: Number(ticker.priceChangePercent),
+                        volume: Number(ticker.volume)
                     };
                 } catch (err) {
                     console.error(`Error fetching ${symbol}:`, err.message);
@@ -119,18 +184,37 @@ router.get('/historical/:symbol', asyncHandler(async (req, res) => {
     }
 
     try {
-        const queryOptions = {
-            period1: period1 || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Default: 30 days ago
-            period2: period2 || new Date(), // Default: today
-            interval: interval
+        const intervalMap = {
+            '1d': '1d',
+            '1wk': '1w',
+            '1mo': '1M'
         };
 
+        const binanceInterval = intervalMap[interval] || '1d';
+        const startTime = period1 ? new Date(period1).getTime() : Date.now() - 30 * 24 * 60 * 60 * 1000;
+        const endTime = period2 ? new Date(period2).getTime() : Date.now();
+
         console.log(`Fetching historical data for ${symbol}...`);
-        const result = await yahooFinance.historical(symbol, queryOptions);
+        const result = await fetchJson('/api/v3/klines', {
+            symbol: symbol.toUpperCase(),
+            interval: binanceInterval,
+            startTime,
+            endTime
+        });
+
+        const transformed = result.map((row) => ({
+            date: new Date(row[0]),
+            open: Number(row[1]),
+            high: Number(row[2]),
+            low: Number(row[3]),
+            close: Number(row[4]),
+            volume: Number(row[5]),
+            closeTime: new Date(row[6])
+        }));
 
         res.json({
             success: true,
-            data: result,
+            data: transformed,
             timestamp: new Date()
         });
     } catch (error) {
@@ -156,11 +240,21 @@ router.get('/search/:query', asyncHandler(async (req, res) => {
 
     try {
         console.log(`Searching for: ${query}`);
-        const results = await yahooFinance.search(query);
+        const info = await getExchangeInfo();
+        const q = query.toUpperCase();
+        const filtered = (info?.symbols || []).filter((s) =>
+            s.symbol.includes(q) ||
+            s.baseAsset.includes(q) ||
+            s.quoteAsset.includes(q)
+        ).slice(0, 10);
 
         res.json({
             success: true,
-            data: results.quotes.slice(0, 10), // Limit to top 10 results
+            data: filtered.map((s) => ({
+                symbol: s.symbol,
+                name: `${s.baseAsset}/${s.quoteAsset}`,
+                status: s.status
+            })),
             timestamp: new Date()
         });
     } catch (error) {
@@ -252,12 +346,12 @@ router.get('/status', asyncHandler(async (req, res) => {
         const dbTest = await db.query('SELECT COUNT(*) FROM stocks');
         const stockCount = parseInt(dbTest.rows[0].count);
 
-        // Test Yahoo Finance API
-        let yahooStatus = 'OK';
+        // Test Binance API
+        let binanceStatus = 'OK';
         try {
-            await yahooFinance.quote('AAPL');
+            await fetchJson('/api/v3/ping');
         } catch (err) {
-            yahooStatus = 'ERROR: ' + err.message;
+            binanceStatus = 'ERROR: ' + err.message;
         }
 
         res.json({
@@ -267,8 +361,8 @@ router.get('/status', asyncHandler(async (req, res) => {
                 connected: true,
                 stockCount
             },
-            yahooFinanceAPI: {
-                status: yahooStatus
+            binanceAPI: {
+                status: binanceStatus
             },
             timestamp: new Date()
         });
